@@ -1,0 +1,5 @@
+REM SET C_INCLUDE_PATH=%UNIXROOT%/usr/include;%UNIXROOT%/usr/include/os2tk45;%UNIXROOT%\os2tk45\inc;%UNIXROOT%\os2tk45\gl;%UNIXROOT%\os2tk45\h;%C_INCLUDE_PATH%
+REM SET INCLUDE=%UNIXROOT%/usr/include;%UNIXROOT%\os2tk45\inc;%UNIXROOT%\os2tk45\gl;%UNIXROOT%\os2tk45\h;
+REM SET EMXOMFLD_TYPE=WLINK
+REM SET EMXOMFLD_LINKER=wl.exe
+make 2>&1 |tee make.out

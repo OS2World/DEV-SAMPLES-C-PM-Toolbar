@@ -4,11 +4,18 @@
 /*                                                                        */
 /*   This sample program implements two menu bars: a standard action bar  */
 /*   and a "toolbar". The toolbar consists of "buttons" that can be       */
-/*   pressed. Currently the buttons take no actions.                      */
+/*   pressed. The toolbar is actually a regular class menu whose items    */
+/*   have the style MIS_BITMAP. The toolbar is positioned in between      */
+/*   the standard titlebar and the standard action or menu bar.           */
 /*                                                                        */
 /*   The purpose of this sample is to demonstrate subclassing the frame   */
 /*   window to add frame controls.                                        */
 /*                                                                        */
+/*   This code was written quickly for demonstration of a technique, not  */
+/*   as an example of production level coding. Error checking was left    */
+/*   out in many areas to make the code less "cluttered". The code was    */
+/*   also written for readability, not for optimal use of resources.      */
+/*   In other words, please don't judge it too harshly :-)                */
 /*                                                                        */
 /*   DISCLAIMER OF WARRANTIES.  The following [enclosed] code is          */
 /*   sample code created by IBM Corporation. This sample code is not      */
@@ -20,6 +27,12 @@
 /*   advised of the possibility of   such damages.                        */
 /*                                                                        */
 /*   Copyright 1992, IBM Corp                                             */
+/*                                                                        */
+/*   John D. Webb                                                         */
+/*   AUSVM1( V$IJOHNW )                                                   */
+/*   CIS: 71075,1117                                                      */
+/*   johnw@vnet.ibm.com                                                   */
+/*                                                                        */
 /* ********************************************************************** */
 
 
@@ -32,10 +45,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "toolbar.h"
-
-
-
 
 HAB     hab;
 HMQ     hmq;
@@ -45,15 +56,15 @@ HWND    hwndToolBar ;
 HWND    hwndMenuBar ;
 QMSG    qmsg;
 
-PSZ    szClassName  = "ToolBarClass" ;
-PSZ    szMainTitle  = "ToolBar" ;
-PSZ    szErrorTitle = "ToolBar Error" ;
+PSZ    pszClassName  = (PSZ) "ToolBarClass" ;
+PSZ    pszMainTitle  = (PSZ) "ToolBar" ;
+PSZ    pszErrorTitle = (PSZ) "ToolBar Error" ;
 
         /* ----------------  Prototypes  ------------------------ */
-MRESULT EXPENTRY MainWindowProc( HWND, USHORT, MPARAM, MPARAM );
-MRESULT EXPENTRY NewFrameProc( HWND, USHORT, MPARAM, MPARAM );
+MRESULT EXPENTRY MainWindowProc( HWND, ULONG, MPARAM, MPARAM );
+MRESULT EXPENTRY NewFrameProc( HWND, ULONG, MPARAM, MPARAM );
 VOID             ShowErrorWindow( PSZ, BOOL );
- 
+
 
 
 /* ********************************************************************** */
@@ -62,17 +73,18 @@ VOID             ShowErrorWindow( PSZ, BOOL );
 /*                                                                        */
 /* ********************************************************************** */
 
-VOID main()
+int main(void)
 {
 
   if ( (hab = WinInitialize( 0L )) == (HAB) NULL ){
-     printf( "ToolBar Error:  WinInitialize failed \n" );
-     return;
+     DosBeep( 60, 250 );
+     DosBeep( 120, 250 );
   }
   else {
      if ( (hmq = WinCreateMsgQueue( hab, 0 )) == (HMQ) NULL ){
-        printf( "ToolBar Error:  WinCreateMsgQueue failed \n" );
-        return;
+        DosBeep( 60, 250 );
+        DosBeep( 120, 250 );
+        DosBeep( 60, 250 );
      }
      else {
 
@@ -85,19 +97,19 @@ VOID main()
         WinSetPointer( HWND_DESKTOP,
                        WinQuerySysPointer(HWND_DESKTOP,SPTR_WAIT,TRUE));
 
-        WinRegisterClass(hab, szClassName, (PFNWP)MainWindowProc, CS_SIZEREDRAW, 0);
+        WinRegisterClass(hab, pszClassName, (PFNWP)MainWindowProc, CS_SIZEREDRAW, 0);
 
         hwndFrame = WinCreateStdWindow(HWND_DESKTOP,
                                        0L,
                                        (PULONG)&fulCreate,
-                                       szClassName ,
-                                       szMainTitle,
+                                       pszClassName ,
+                                       pszMainTitle,
                                        0L,
                                        (HMODULE)NULL,
                                        ID_MAIN_WIN,
                                        &hwndClient);
         if ( hwndFrame == NULLHANDLE ) {
-           ShowErrorWindow( "Error creating Main window !", TRUE );
+           ShowErrorWindow( (PSZ) "Error creating Main window !", TRUE );
         }
         else {
            PFNWP     pfnwpOldFrameProc ;
@@ -106,13 +118,13 @@ VOID main()
            pfnwpOldFrameProc = WinSubclassWindow( hwndFrame,
                                                   (PFNWP) NewFrameProc );
            if ( pfnwpOldFrameProc == (PFNWP)0L ){
-               ShowErrorWindow( "Error subclassing frame window !", TRUE );
+               ShowErrorWindow( (PSZ) "Error subclassing frame window !", TRUE );
            }
            else {
               PID       pid ;
               SWCNTRL   swCntrl;
               HSWITCH   hSwitch ;
-              LONG      lRGB;
+
 
                 /* -------  store old frame proc with handle  ------- */
               WinSetWindowULong( hwndFrame,
@@ -134,17 +146,10 @@ VOID main()
                  *  regular action bar, so hang onto it tightly
                  */
 
-                /* ---------- set toolbar background color ---------- */
-              lRGB =  WinQuerySysColor( HWND_DESKTOP, SYSCLR_BUTTONDARK, 0L );
-              WinSetPresParam( hwndToolBar,
-                               PP_BACKGROUNDCOLOR,
-                               4L,
-                               (PVOID)lRGB );
-
                 /* ---------  set window size and pos  -------------- */
               WinSetWindowPos( hwndFrame,
                                HWND_TOP,
-                               0, 0, 370, 300, 
+                               0, 0, 370, 300,
                                SWP_SIZE | SWP_SHOW | SWP_ACTIVATE );
 
                /* ----------- add program to tasklist  --------------- */
@@ -156,7 +161,7 @@ VOID main()
               swCntrl.idSession = (LONG) NULL ;
               swCntrl.uchVisibility = SWL_VISIBLE ;
               swCntrl.fbJump = SWL_JUMPABLE ;
-              sprintf( swCntrl.szSwtitle, szMainTitle );
+              strcpy( swCntrl.szSwtitle, (const char * restrict) pszMainTitle );
               hSwitch = WinAddSwitchEntry((PSWCNTRL)&swCntrl);
 
 
@@ -192,7 +197,7 @@ VOID main()
 /* ********************************************************************** */
 
 MRESULT EXPENTRY
-MainWindowProc( HWND hwnd, USHORT msg, MPARAM mp1, MPARAM mp2 )
+MainWindowProc( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2 )
 {
 
   switch (msg) {
@@ -207,6 +212,97 @@ MainWindowProc( HWND hwnd, USHORT msg, MPARAM mp1, MPARAM mp2 )
          WinEndPaint( hps );
       }
       break;
+
+       /* --------  Handle commands from *both* menus ---------- */
+    case WM_COMMAND :
+        {
+        switch ( SHORT1FROMMP( mp1 )){
+             /* ----- Toolbar items -------- */
+          case  MID_TB_1 :
+               DosBeep( 440,250 ) ;
+               break;
+          case  MID_TB_2 :
+               DosBeep( 466,250 ) ;
+               break;
+          case  MID_TB_3 :
+               DosBeep( 494,250 ) ;
+               break;
+          case  MID_TB_4 :
+               DosBeep( 524,250 ) ;
+               break;
+          case  MID_TB_5 :
+               DosBeep( 550,250 ) ;
+               break;
+          case  MID_TB_6 :
+               DosBeep( 588,250 ) ;
+               break;
+          case  MID_TB_7 :
+               DosBeep( 624,250 ) ;
+               break;
+          case  MID_TB_8 :
+               DosBeep( 662,250 ) ;
+               break;
+          case  MID_TB_9 :
+               DosBeep( 701,250 ) ;
+               break;
+          case  MID_TB_10:
+               DosBeep( 743,250 ) ;
+               break;
+              /* -------- Menu Bar items ----------- */
+          case  MID_SUB11 :
+                WinMessageBox( HWND_DESKTOP,
+                               HWND_DESKTOP,
+                               (PCSZ) "Menu 1, Item 1 Selected",
+                               pszMainTitle ,
+                               0,
+                               MB_ICONASTERISK | MB_OK );
+               break;
+          case  MID_SUB21 :
+                WinMessageBox( HWND_DESKTOP,
+                               HWND_DESKTOP,
+                               (PCSZ) "Menu 2, Item 1 Selected",
+                               pszMainTitle ,
+                               0,
+                               MB_ICONASTERISK | MB_OK );
+               break;
+          case  MID_SUB22 :
+                WinMessageBox( HWND_DESKTOP,
+                               HWND_DESKTOP,
+                               (PCSZ) "Menu 2, Item 2 Selected",
+                               pszMainTitle ,
+                               0,
+                               MB_ICONASTERISK | MB_OK );
+               break;
+          case  MID_SUB31 :
+                WinMessageBox( HWND_DESKTOP,
+                               HWND_DESKTOP,
+                               (PCSZ) "Menu 3, Item 1 Selected",
+                               pszMainTitle ,
+                               0,
+                               MB_ICONASTERISK | MB_OK );
+               break;
+          case  MID_SUB32 :
+                WinMessageBox( HWND_DESKTOP,
+                               HWND_DESKTOP,
+                               (PCSZ) "Menu 3, Item 2 Selected",
+                               pszMainTitle ,
+                               0,
+                               MB_ICONASTERISK | MB_OK );
+               break;
+          case  MID_SUB33 :
+                WinMessageBox( HWND_DESKTOP,
+                               HWND_DESKTOP,
+                               (PCSZ) "Menu 3, Item 3 Selected",
+                               pszMainTitle ,
+                               0,
+                               MB_ICONASTERISK | MB_OK );
+               break;
+
+          default:
+               break;
+          } /* end of switch */
+        }
+        break;
 
     default:
       return WinDefWindowProc(hwnd,msg,mp1,mp2);
@@ -231,70 +327,152 @@ MainWindowProc( HWND hwnd, USHORT msg, MPARAM mp1, MPARAM mp2 )
 /*   below the toolbar. The original processing of WM_FORMATFRAME will    */
 /*   return the count of original frame controls (note that because we    */
 /*   modified WM_QUERYFRAMECTLCOUNT the SWP array will actually contain   */
-/*   an extra SWP for our second menu). There should probably be more     */
-/*   code that checks the order of controls in the array, but we are      */
-/*   going to make some (educated) assumptions about the control order.   */
-/*   The client window is always the last item in the SWP array. The      */
-/*   menu bar (toolbar in our case) is the previous item. We will use     */
-/*   the default settings of these controls to position our new menu and  */
-/*   make adjustments to these controls for the new menu.                 */
+/*   an extra SWP for our second menu). We will setup the SWP for our     */
+/*   second menu based upon setting for the first menu. We will also have */
+/*   to adjust the client window size to make room for the additional     */
+/*   menu. Likewise, we will need to check if there is a vertical scroll  */
+/*   bar and adjust it. We will us a simple technique of comparing the    */
+/*   hwnd field from the SWP array with our global variable hwnds to      */
+/*   determine which SWP structures in the array we are interested in.    */
 /*                                                                        */
 /* ********************************************************************** */
 
 MRESULT EXPENTRY
-NewFrameProc( HWND hwnd, USHORT msg, MPARAM mp1, MPARAM mp2 )
+NewFrameProc( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2 )
 {
-  PFNWP   oldFrameProc ;
+  PFNWP   pfnwpOldFrameProc ;
 
      /* ------- get original frame procedure  --------- */
-  oldFrameProc = (PFNWP) WinQueryWindowULong( hwnd, QWL_USER );
+  pfnwpOldFrameProc = (PFNWP) WinQueryWindowULong( hwnd, QWL_USER );
 
   switch (msg) {
     case WM_QUERYFRAMECTLCOUNT :
          {
-           USHORT   itemCount ;
-           
+          ULONG   usItemCount ;
+
                 /* ---- get count of original frame controls --- */
-           itemCount = SHORT1FROMMR( oldFrameProc( hwnd, msg, mp1, mp2 ));
+          usItemCount = SHORT1FROMMR( pfnwpOldFrameProc( hwnd,
+                                                         msg,
+                                                         mp1, mp2 ));
                 /* ------- add 1 for new toolbar control  ------ */
-           return ( (MRESULT) ++itemCount );  
+          return ( (MRESULT) ++usItemCount );
          }
 
     case WM_FORMATFRAME :
        {
-         PSWP     pSWP ;
-         PRECTL   pFrameRect ;
-         USHORT   itemCount ;
+         PSWP     pSWP ;               // pointer to array of frame ctl SWPs
+         ULONG	  usItemCount ;        // count of original frame controls
+         ULONG    usNewMenuIndex ;     // index of new menu SWP
+         ULONG   usToolBarIndex ;     // index of Tool Bar menu SWP
+         ULONG   usClientIndex ;      // index of client window SWP
+         ULONG   usVertScrollIndex ;  // index of vertical scrollbar SWP
+         HWND     hwndVertScroll ;     // hwnd of vertical scrollbar
 
-         pFrameRect = PVOIDFROMMP( mp2 );
+            /* ------- get a pointer to the SWP array ---------- */
          pSWP = PVOIDFROMMP( mp1 );
-           /* ---- run regular processing on original controls --- */
-         itemCount = SHORT1FROMMR( oldFrameProc( hwnd, msg, mp1, mp2 ));
 
-         /* ---- get size values for 2nd menu bar  -------- */
-         pSWP[ itemCount ].fl = SWP_SIZE;
-         pSWP[ itemCount ].cy =  pSWP[(itemCount-1)].cy ;  /* set some */
-         pSWP[ itemCount ].cx =  pSWP[(itemCount-1)].cx ;  /*  defaults */
-         pSWP[ itemCount ].hwndInsertBehind = HWND_TOP ;
-         pSWP[ itemCount ].hwnd = hwndMenuBar ;
-         WinSendMsg( hwndMenuBar,                 /* let the menu code make */
-                     WM_ADJUSTWINDOWPOS,          /*  the actual size       */
-                     MPFROMP( pSWP+itemCount ),   /*  adjustments           */
+           /* ---- run regular processing for original controls --- */
+           /*
+            *  Note that the original frame proc will setup all
+            *  the SWP sturctures for the standard frame window
+            *  controls starting at the beginning of the array.
+            *  A count of how many SWP structures were initialized
+            *  is returned.
+            *  All SWP structures for new controls that are to be
+            *  added ( in our case, 1 ) will be uninitialized and
+            *  at the end of the array. The start of the uninitialied
+            *  SWP structure start at an index equal to the returned
+            *  count.
+            */
+         usItemCount = SHORT1FROMMR( pfnwpOldFrameProc( hwnd,
+                                                        msg,
+                                                        mp1, mp2 ));
+
+            /* ------------- locate SWP for 1st menu  ---------- */
+            /*
+             *  We will use the settings of the 1st menu to help initialize
+             *  the SWP for the second menu. We look for the proper SWP
+             *  by scanning the array for the matching hwnd.
+             */
+         for ( usToolBarIndex = 0;
+               usToolBarIndex < usItemCount;
+               usToolBarIndex++) {
+            if (pSWP[usToolBarIndex].hwnd == hwndToolBar){
+               break;
+            }
+         } // end of for( usToolBarIndex...
+
+            /* ------------- locate SWP for client window  ---------- */
+            /*
+             *  We will need to adjust the vertical height of the client
+             *  window to make room for the second menu. We look for the
+             *  proper SWP by scanning the array for a matching hwnd.
+             */
+         for ( usClientIndex = 0;
+               usClientIndex < usItemCount;
+               usClientIndex++){
+            if (pSWP[usClientIndex].hwnd == hwndClient ){
+               break;
+            }
+         } // end of for ( usClientIndex...
+
+            /* --- locate SWP for vert scroll (if exists) --- */
+            /*
+             *  First we will check if this window has a vert. scroll bar.
+             *  We will need to adjust the vertical height of the scroll
+             *  bar to make room for the second menu. We look for the
+             *  proper SWP by scanning the array for a matching hwnd.
+             */
+
+         if ( ( hwndVertScroll =
+                    WinWindowFromID( hwnd, FID_VERTSCROLL)) != NULLHANDLE ){
+            for ( usVertScrollIndex = 0;
+                  usVertScrollIndex < usItemCount;
+                  usVertScrollIndex++){
+               if (pSWP[usVertScrollIndex].hwnd == hwndVertScroll ){
+                  break;
+               }
+            } // end of for ( usClientIndex...
+         } // end of if (( hwndVertScroll...
+
+
+          /* ------ the new SWP starts after standard control SWPs ----- */
+         usNewMenuIndex = usItemCount ;
+
+          /* ---- get size values for 2nd menu bar  -------- */
+         pSWP[ usNewMenuIndex ].fl = SWP_SIZE;
+         pSWP[ usNewMenuIndex ].cx =  pSWP[usToolBarIndex].cx ;  // set some
+         pSWP[ usNewMenuIndex ].cy =  pSWP[usToolBarIndex].cy ;  // defaults
+         pSWP[ usNewMenuIndex ].hwndInsertBehind = HWND_TOP ;
+         pSWP[ usNewMenuIndex ].hwnd = hwndMenuBar ;
+
+           /* -- get the menu code to make the actual size adjustments -- */
+         WinSendMsg( hwndMenuBar,
+                     WM_ADJUSTWINDOWPOS,
+                     MPFROMP( pSWP+usNewMenuIndex ),
                      (MPARAM) 0L );
 
-          /* ------ position menu directly below other menu  ------- */
-         pSWP[itemCount].x = pSWP[(itemCount-2)].x ; 
-         pSWP[itemCount].y = pSWP[(itemCount-2)].y - pSWP[itemCount].cy ;
-         pSWP[itemCount].fl = pSWP[(itemCount-2)].fl ;
-          /* --------  adjust client window size for 2nd menu ------- */
-         pSWP[(itemCount-1)].cy -= pSWP[itemCount].cy ;
-          /* --------  return total count of frame controls   ------- */
-         return( MRFROMSHORT( ++itemCount )  );
+         /* ------ position menu directly below other menu  ------- */
+         pSWP[usNewMenuIndex].x = pSWP[usToolBarIndex].x ;
+         pSWP[usNewMenuIndex].y = pSWP[usToolBarIndex].y -
+                                               pSWP[usNewMenuIndex].cy ;
+         pSWP[usNewMenuIndex].fl = pSWP[usToolBarIndex].fl ;
+
+         /* --------  adjust client window size for 2nd menu ------- */
+         pSWP[usClientIndex].cy -= pSWP[usNewMenuIndex].cy ;
+
+         /* -------- adjust vertical scroll size for 2nd menu  ----- */
+         if ( hwndVertScroll != NULLHANDLE ){
+             pSWP[usVertScrollIndex].cy -= pSWP[usNewMenuIndex].cy ;
+         }
+
+         /* ---  return total count of controls ( +1 for 2nd menu ) --- */
+         return( MRFROMSHORT( ++usItemCount )  );
        }
        break;
 
     default:
-      return oldFrameProc(hwnd,msg,mp1,mp2);
+      return( pfnwpOldFrameProc(hwnd,msg,mp1,mp2) );
 
   } /* end of switch () */
 
@@ -324,10 +502,9 @@ ShowErrorWindow( PSZ  pszErrorMsg, BOOL bUseLastError )
   WinMessageBox( HWND_DESKTOP,
                  HWND_DESKTOP,
                  pszErrorMsg ,
-                 szErrorTitle ,
+                 pszErrorTitle ,
                  0,
                  MB_CUACRITICAL | MB_OK );
 
 }
-
 

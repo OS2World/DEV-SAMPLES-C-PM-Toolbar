@@ -2,9 +2,8 @@
 ; TOOLBAR.DEF module definition file                                      ;
 ;=========================================================================;
 
-NAME           ToolBar   WINDOWAPI
+NAME		TOOLBAR		WINDOWAPI
 
-DESCRIPTION    'Frame Subclass Demo'
-PROTMODE
-HEAPSIZE       1024
+DESCRIPTION	'@#OS2World:1.01#@##1## 01 Jul 2023 20:00:00     ARCAOS-507::::::v1.01@@Frame Subclass Demo'
+
 STACKSIZE      8192
